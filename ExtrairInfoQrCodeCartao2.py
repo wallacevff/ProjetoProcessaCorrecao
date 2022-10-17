@@ -42,7 +42,7 @@ def extractValueFromQrCode(img):
     return val
 
 def main():
-    directory = 'imagem'
+    directory = 'cartoesPDF'
     fi = open("QrCodesRead.txt", "w")
     n = 0
     m = 0
