@@ -1,11 +1,13 @@
 import os
 import cv2
+from pyzbar.pyzbar import decode
 import numpy as np
 import sys, qrcode
 import pyqrcode
 import qrtools
 from pdf2image import *
 sys.stdout.reconfigure(encoding='utf-8')
+from pyzbar.pyzbar import decode
 #from poppler import load_from_file, PageRenderer
 #from popplerutils import *
 
@@ -42,7 +44,7 @@ def extractValueFromQrCode(img):
     return val
 
 def main():
-    directory = 'cartoesPDF'
+    directory = 'y:'
     fi = open("QrCodesRead.txt", "w")
     n = 0
     m = 0
@@ -57,25 +59,19 @@ def main():
             #print("Lendo arquivo: " + f)
             images = convert_from_path(f,dpi=100,fmt="ppm")
             images[0].save("a.tiff", "tiff")
-            # Load imgae, grayscale, Gaussian blur, Otsu's threshold
-            image = cv2.imread("a.tiff") #cv2.imread(images[0])
-            original = image.copy()
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            blur = cv2.GaussianBlur(gray, (9,9), 0)
-            thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
-            close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
+            image = cv2.imread("a.tiff")
+
             try:
-                img = findContours(image, close, original)
-                qrCode = extractValueFromQrCode(img)
-                #print("Qr Code: " + qrCode)
-                if(qrCode != "" and qrCode is not None):
-                    n= n+1
-                    fi = open("QrCodesRead.txt", "a")
-                    fi.write(qrCode + "\r\n");
-                    fi.close()
-            except:
-                print("Erro no processamento do QR Code")
+                for barcode in decode(image) :
+                    data = barcode.data.decode('utf-8')
+                    if(data != "" and data is not None):
+                        n = n+1
+                        fi = open("QrCodesRead.txt", "a")
+                        fi.write(data + "\n");
+                        fi.close()
+
+            except Exception as e:
+                print("Erro no processamento do QR Code: " + str(e))
                 continue
     print("Nro QrCode lidos: ", n, "/",m)
 
