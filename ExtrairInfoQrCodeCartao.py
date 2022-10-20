@@ -1,62 +1,135 @@
+from cgi import print_form
+from dataclasses import replace
+from email.policy import default
+import os
+import shutil
 import cv2
+from pyzbar.pyzbar import decode
 import numpy as np
-import sys, qrcode
+import sys
+import qrcode
 import pyqrcode
 import qrtools
+from pdf2image import *
+sys.stdout.reconfigure(encoding='utf-8')
+def clear(): return os.system('cls')
 
 
-# Load imgae, grayscale, Gaussian blur, Otsu's threshold
-image = cv2.imread("a.tiff")
-original = image.copy()
-gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-blur = cv2.GaussianBlur(gray, (9,9), 0)
-thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+def MoverArquivo(f, pastaOrigem, pastaDestino):
+    shutil.move(pastaOrigem + os.path.basename(f),
+                pastaDestino + os.path.basename(f))
 
-# Morph close
-kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
-close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
 
-# Find contours and filter for QR code
-def findContours():
-    global m
-    m = 0
-    cnts = cv2.findContours(close, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
-    for c in cnts:
-        peri = cv2.arcLength(c, True)
-        approx = cv2.approxPolyDP(c, 0.04 * peri, True)
-        x,y,w,h = cv2.boundingRect(approx)
-        area = cv2.contourArea(c)
-        ar = w / float(h)
-        if len(approx) == 4 and area > 1000 and (ar > .85 and ar < 1.3):
-            cv2.rectangle(image, (x, y), (x + w, y + h), (36,255,12), 3)
-            ROI = original[y:y+h, x:x+w]
-            #cv2.imwrite('ROI.png', ROI)
+def LerQrCode(barcode, pastaOrigem, n, f):
+
+    data = barcode.data.decode('utf-8')
+    if (data != "" and data is not None):
+        n = n+1
+        fi = open("QrCodesRead.txt", "a")
+        fi.write("{data1}\n".format(data1=data))
+        fi.close()
+        try:
+            MoverArquivo(f, pastaOrigem, "CartoesProcessados\\")
+        except:
+            print("Arquivo não encontrado : " +
+                  str(os.path.basename(f)) + "\n")
+    # print(data)
+    return n
+
+
+def DecodificarQrCode(f, image):
+    pastaOrigem = f.replace(os.path.basename(f), "")
+    decoded = ""
+    decoded = decode(image)
+    if (decoded == None or len(decoded) < 1):
+        decoded = "Não lido... arquivo: " + str(os.path.basename(f))
+        try:
+            MoverArquivo(f, pastaOrigem, "QrCodeNaoLido\\")
+        except Exception as e:
+            print("Arquivo não encontrado : " +
+                  str(os.path.basename(f)) + "\n")
+
+    return decoded, pastaOrigem
+
+
+def ConverterImagem(directory, filename, m):
+    f = os.path.join(directory, filename)
+    if os.path.isfile(f) and f.find(".pdf") > 0:
+        try:
             m = m + 1
-            s = "ROI" + str(m) + ".png"
-            cv2.imwrite(s , ROI)
-    return ROI
-#cv2.imshow('thresh', thresh)
-#cv2.imshow('close', close)
-#cv2.imshow('image', image)
-#cv2.imshow('ROI', ROI)
-#cv2.waitKey()     
+            filename = f.replace(".\\", "")
+            images = convert_from_path(f, dpi=100, fmt="ppm", thread_count=4)
+            images[0].save("CartaoConvertidoParaLeitura.tiff", "tiff")
+            image = cv2.imread("CartaoConvertidoParaLeitura.tiff")
+        except:
+            MoverArquivo(f,f.replace(os.path.basename(f), ""), "PDFInvalido\\")
+            print("Erro na conversão do arquivo: {file}".format(file = filename))
+            return "", f, m
+        return image, f, m
 
-def extractValueFromQrCode(img):
-    #img = ROI #cv2.imread("ROI.png")
-    detector=cv2.QRCodeDetector()
-    val,b,c=detector.detectAndDecode(img)
-    return val
+
+def LerArquivosPDF(directory):
+    n = 0
+    m = 0
+    for filename in os.listdir(directory):
+        image, f, m = ConverterImagem(directory, filename, m)
+        try:
+            if(image != "") :
+                decoded, pastaOrigem = DecodificarQrCode(f, image)
+                for barcode in decoded:
+                    n = LerQrCode(barcode, pastaOrigem, n, f)
+                    print("Nro QrCode lidos: " + str(n) + " / " + str(m))
+                    # clear()
+        except Exception as e:
+            print("Erro no processamento do QR Code: " + str(e))
+            try:
+                MoverArquivo(f, pastaOrigem, "QrCodeNaoLido\\")
+            except:
+                print("Arquivo não encontrado : " +
+                      str(os.path.basename(f)) + "\n")
+            continue
+
+    return "Nro QrCode lidos: " + str(n) + " / " + str(m)
+
+
+def exec():
+    directory = 'cartoesPDF'
+    LerArquivosPDF(directory)
+    return
+
 
 def main():
-    
-    print(extractValueFromQrCode(findContours()))
+  #  fi = open("QrCodesRead.txt", "w")
+  # fi.write("")
+ #   fi.close()
+    loop = True
+    while loop:
+        """
+        try:
+            opcao = input(
+                "O que deseja fazer?\r\n[1] => Executar\r\n[2] => Executar sem apagar o log\r\n[3] => Encerrar\r\n")
+
+            match opcao:
+                case "1":
+                    fi = open("QrCodesRead.txt", "w")
+                    fi.write("")
+                    fi.close()
+                    exec()
+                case "2":
+                    exec()
+                case "3":
+                    loop = False
+                case _:
+                    raise Exception
+
+        except:
+            print("Opção Inválida!\r\n")
+            continue
+    """
+       # fi = open("QrCodesRead.txt", "w")
+       # fi.write("")
+       # fi.close()
+        exec()
+
 
 main()
-
-
-
-
-
-    
-
