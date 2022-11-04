@@ -3,6 +3,7 @@ from dataclasses import replace
 from email.policy import default
 import os
 import shutil
+from unittest import result
 import cv2
 from pyzbar.pyzbar import decode
 import numpy as np
@@ -14,6 +15,36 @@ from pdf2image import *
 sys.stdout.reconfigure(encoding='utf-8')
 def clear(): return os.system('cls')
 
+import mysql.connector
+
+def PegarNomeTemplate(id_template):
+    mydb = mysql.connector.connect(
+    host="localhost",
+    user="wallace",
+    password="522345",
+    database="semed_manaus"
+)
+    mycursor = mydb.cursor()
+    mycursor.execute("SELECT FOLDER_TEMPLATE_REZ FROM template WHERE ID_TEMPLATE = {ID};".format(ID = id_template))
+    myresult = mycursor.fetchall()
+    mydb.close()
+    return  myresult[0]
+
+def PegarNomeAluno(matricula, id_turma):
+    mydb = mysql.connector.connect(
+    host="localhost",
+    user="wallace",
+    password="522345",
+    database="semed_manaus"
+)
+    mycursor = mydb.cursor()
+    mycursor.execute("SELECT NOME_ALUNO FROM aluno WHERE MATRICULA = {ID} AND ID_TURMA = {id_turma} ;".format(ID = matricula, id_turma = id_turma))
+    myresult = mycursor.fetchall()
+    mydb.close()
+    #print(myresult);
+    if(len(myresult) < 1):
+        return ""
+    return myresult[0][0];
 
 def MoverArquivo(f, pastaOrigem, pastaDestino):
     shutil.move(pastaOrigem + os.path.basename(f),
@@ -25,8 +56,21 @@ def LerQrCode(barcode, pastaOrigem, n, f):
     data = barcode.data.decode('utf-8')
     if (data != "" and data is not None):
         n = n+1
+        dadosEmVetor = data.split(";")
+        id_template = dadosEmVetor[1]
+        print("\n")
+       ## print(dadosEmVetor)
+        print("\n")
+        matricula = dadosEmVetor[5]
+        #print(matricula)
+        id_turma = dadosEmVetor[3]
+        #print(id_template)
+        caminhoArquivoResposta = PegarNomeTemplate(id_template)
+        nomeAluno = PegarNomeAluno(matricula, id_turma)
+        #print("\n"+ nomeAluno +"\n")
+        
         fi = open("QrCodesRead.txt", "a")
-        fi.write("{data1}\n".format(data1=data))
+        fi.write("QrCode: {data1}; Nome do Aluno: {nomeAluno}; Caminho Arquivo de Resposta Remark: \"{caminho}\"\n".format(data1=data, caminho = caminhoArquivoResposta[0], nomeAluno = nomeAluno))
         fi.close()
         try:
             MoverArquivo(f, pastaOrigem, "CartoesProcessados\\")
@@ -99,9 +143,9 @@ def exec():
 
 
 def main():
-  #  fi = open("QrCodesRead.txt", "w")
-  # fi.write("")
- #   fi.close()
+    fi = open("QrCodesRead.txt", "w")
+    fi.write("")
+    fi.close()
     loop = True
     while loop:
         """
